@@ -1,0 +1,192 @@
+#| Overview of Lisp: Neste capitulo cobre brevemente as mais importantes special-forms e funcoes do Lisp. - Consultar Guy Steele Common Lisp, The Language
+
+3.1 A Guide to LispStyle: As 6 maximas que todo programador deve serguir: 
+
+Be specific.
+Use abstractions.
+Be concise.
+Use the provided tools.
+Don't be obscure.
+Be consistent.
+
+|# 
+
+
+#| Exercise 3.1 [m] Show a 1ambda expression that is equivalent to the 1et* expression. You may need more than one 1ambda.
+> (let* ((x 6)
+       (y (* x x)))
+  (+ x y)) => 42
+
+--- resposta:
+> ((lambda (x)
+     ((lambda (y)
+	(+ x y))
+      (* x x)))
+   6) => 42
+
+|#
+;; funcao que define o tamanho de uma lista usando recursao de cauda com funcao auxiliar
+(defun leng1 (list)
+  (leng1-aux list 0))
+
+(defun leng1-aux (sublist len-so-far)
+  (if (null sublist) 
+      len-so-far
+      (leng1-aux (rest sublist) (+ 1 len-so-far))))
+
+;; aqui recriamos a funcao de tamanho da lista usando um parametro especial &optional, que procura por uma property list para o que seu identificador seja eqUAL ao indicator(&optional). se encontrado o valor correspondente eh retornao, caso contrario Default eh retornado, se o default nao for especificado entao Nil eh usado para o default.
+(defun leng (list &optional (len-so-far 0))
+  (if (null list)
+      len-so-far
+      (leng (rest list) (+ 1 len-so-far))))
+
+;; 3.4 Equality and Internal Representation.
+preferi usar EQUALP, pois eh mais geral ou EQ para casos especificos
+
+;; CHAPTER 4, GPS: The General Problem Solver
+
+#| Este capitulo eh sobre o GPS. Noutros aspectos, este nivel eh sobre como desenvolver um programa de AI. Aqui distinguimos 5 estagios no desenvolvimento de um programa.
+
+1. Describe (the problem in vague terms): Primeiramente nos descrevemos o problema, na qual temos uma idea aproximada do que nos queremos fazer.
+2. Specify (the problem in algorithimc terms): Second is the program specification, onde nos reescrevemos o problema em termos que se aproximam de um procedimento computavel. (algoritimisacao)
+3. Implement (the problem in a programing language): O terceiro estagio eh implementar o programa em alguma linguagem de programacao.
+4. Test (the program on representative examples): O quarto estagio sao os testes
+5. Debug and Analyze (the resulting program, and repeat the process): O quinto estagio eh debugging e analisys. 
+-> Limites entre os estagios sao fluidos, a os estagios nao necessitam de ser completados na ordem citada. Problemas em qualquer estagio dizem o caminho no estagio anterior, ou eventualmente, redesenhar completamente ou abandonar o projeto.
+
+Seguiremos todos os 5 estagios ao desenvolver nossa versao do GPS, para um melhor entendimento do programa e como escrever um programa da nossa maneira. |#
+
+;; 4.1: Stage 1: Description 
+
+#| Com a nossa descrissao do problema, comecaremos com uma citacao do livro de 1972 de Newell and Simon, Human Problem Solving:
+
+O principal metodo de GPS, juntamente incorporado com a heuristica do means-ends analisys. Means-ends analisys eh escrita pela seguinte tipo de common-sense argument
+
+Quero levar minha filha para a escola. Qual a diferenca entre o que eu tenho e o que eu preciso? Meu automovel. Meu automovel nao funciona. O que eh necessario para faze-lo funcionar? Uma nova bateria. O que tem novas baterias? Uma loja de reparos. Eu que a loja de reparos coloque uma nova bateria; mas a loja nao sabe que eu preciso de uma. Qual eh a dificuldade? Uma comunicacao. O que permite uma comunicacao? Um telephone... e por ai vai. 
+
+O tipo de analise/classificacar as coisas em termos de funcoes que servem e ocila entre as extremidades, funcoes necessarias, e significa que perfoma o sistema basico da euristica do GPS.
+
+Dado a descricao da teoria de resolver o problema, como podemos escrever um programa? Primeiro, tentaremos entender melhor o procedimento esboçado na citacao. A principal ideia eh resolver o problema usando o processo chamado means-ends analisy, onde o problema eh dado em termos do que nos queremos que aconteca. No exemplo, o problema eh levar a crianca para a escola, mas em geral nos gostariamos de um programa que seja habil para resolver uma classe de problemas. Nos podemos resolver um problema do tipo "a diferenca entre o que eu quero e o que eu preciso". Por exemplo, se tenho uma crianca em casa, e EU QUERO que essa crianca na escola, entao dirigir seria uma solucao, pq nos sabemos que dirigir nos faz mudar de localizacao. Nos tb devemos tomar cuidado com o uso do means-ends analisys como uma escolha: se eh possivel comecar da situacao atual e procurar a proxima passo, ou empregar uma mistura de diferentes estrategias de busca.
+Algumas acoes requerer solucoes de precondicoes como subproblemas. Por exemplo, antes de dirigir o caro, nos temos que resolver o problema de pegar o carro funcionando. Se o carro ja estiver funcionando, nesse caso nao a nenhum subproblema para resolver. |#
+
+;; 4.2 Stage 2: Specification 
+
+#| Nos ja temos uma vaga ideia do que resolver no GPS. Podemos refinar essas notacoes em representacoes mais proximas do Lisp, como:
+
+* Nos podemos representar o estado atual do Mundo -"O que eu tenho "- ou o objetivo -"O que eu quero"- como conjuntos de condicoes. Common Lisp nao tem dados para tipos de conjuntos, mas dem listas, que podem ser usadas para implementar conjundos. Cada condicao sera representada por um Simbolo. Assim, um objetico tipico pode ser uma lista de duas condicoes (rich famous), e o estado atual pode ser (unknown poor).
+* Precisaremos de uma lista de operadores admissiveis. Essa lista sera uma constante sob o curso do problema, ou ate msm uma serie de problemas, mas queremos ser capases de mudar e atacar um novo dominio do problema.
+* Um operador pode ser representado como uma estrutura composta de uma acao, uma lista de precondicoes e uma lista de efeitos. Nos podemos definir os limites entre os tipos de possiveis efeitos por dizer que um efeito tambem adiciona ou remove uma condicao a partir do estado atual. Assim, a lista de efeitos pode ser dividida em add-list e delete-list. 
+* Um problema completamente descrito ao GPS em termos de um Estado Inicial, Goal State e um conjunto de operadores conhecidos. Assim, o GPS tera uma funcao de tres argumentos. Por exemplo,
+
+(GPS '(unknown porr) '(rich famous) list-of-ops)
+
+noutras palavras, comecamos a partir do estado de ser poor e unknown, e queremos chegar no estado de ser rich and famous, usando qualquer combinacao de operadores conhecidos. O GPS deve retornar True apenas se isso resolver o problema, e entao deve printar as acoes executadas. A abordagem mais simples eh ir atravez das condicoes do Goal State uma vez e tentar alcancar cada uma. Se entao todos forem alcancados o problema eh resolvido.
+* Uma unico objetico pode ser alcancado de duas formas. Se isso ja eh o estado atual o objetivo eh trivialmente alcancado sem esforcos, caso contrario, nos temos que encontrar algum operador apropriado e tentar aplica-lo.
+* um operador eh apropriado se um dos efeitos do operador eh add ao objetivo em questao para o estado atual; noutras palavras, se o objetivo esta no operador add-list.
+* Nos podemos aplicar um operador se nos conseguimos alcancar todas as precondicoes. Mas isso eh facil, pois nos apenas definimos a notacao de alcancar um objetivo do paragrafo anterior. Uma vez que as precondicoes foram alcancadas aplicando um operador significa executar a acao e atualizar o estado em termo do operador add-list e delete-list. |# 
+
+;; 4.3: Stage 3: Implementation
+
+#| Glossario para o GPS Program
+-- Top-Level Function
+GPS: Resolve o objetivo apartir de estados usando uma lista de operadores
+
+-- Special Variables
+*state*: O estado atual: uma lista de condicoes
+*ops*: Uma lista de operadores disponiveis
+
+-- Data Types
+op: Uma operacao com pre-condicoes, add-list e del-list
+
+-- Functions
+achieve: Alcanca um objetivo individual
+appropiate-p: Decide se um operador eh apropriado para o objetivo.
+apply-op: Aplica um operador no estado atual
+
+-- Funcoes Selecionadas Common Lisp
+member: Testa se um elemento eh um membro de uma lista
+set-difference: Todos os elementos de um conjunto, mas nao do outro
+union: Todos os elementos de ambos os conjuntos
+every: Testa se todo elemento de uma lista passa em um teste
+some: Testa se algum elemento de uma lista passa em um teste.
+
+-- Funcoes previamente definidas
+find-all: Uma lista de todos os elementos combinados
+|#
+
+;; Implementando 
+
+;; More about parameters, FIND-ALL
+(defun find-all (item sequence &rest keyword-args
+				 &key (test #'eql) test-not &allow-other-keys)
+  "Encontra todos os elementos da sequencia que combina os itens de acordo com a keywords. Nao altera a sequencia."
+  (if test-not
+      (apply #'remove item sequence
+	     :test-not (complement test-not) keyword-args)
+      (apply #'remove item sequence
+	     :test (complement test) keyword-args)))
+
+(defvar *state* nil 
+  "O estado atual: uma lista de condicoes.")
+
+(defvar *ops* nil
+  "Uma lista de operadores disponiveis.")
+
+(defstruct op 
+  "Uma operacao"
+  (action nil) (preconds nil) (add-list nil) (del-list nil))
+
+(defun GPS (*state* goals *ops*)
+  "General Problem Solver: alcanca todos os Goals(objetivos) usando *ops*."
+  (if (every #'achieve goals) 'Resolvido))
+
+(defun achieve (goal)
+  "Um goal eh alcancado se isso ja o detem 
+ou se ha um OP apropriado para essa aplicacao"
+  (or (member goal *state*)
+      (some #'apply-op
+	    (find-all goal *ops* :test #'appropiate-p))))
+
+(defun appropiate-p (goal op)
+  "Um OP eh apropriado ao GOAL se isso esta em add-list"
+  (member goal (op-add-list op)))
+
+(defun apply-op (op)
+  "Printa uma mensagem e atualiza *state* se OP eh aplicavel"
+  (when (every #'achieve (op-preconds op))
+    (print (list 'executando (op-action op)))
+    (setf *state* (set-difference *state* (op-del-list op)))
+    (setf *state* (union *state* (op-add-list op)))
+    t))
+
+;; 4.4: Stage 4: Test
+
+;; Aqui definimos os operadores para instalar a batteria, dizer para o repair-shop o problema e telefonar....
+(defparameter *school-ops*
+  (list 
+   (make-op :action 'drive-son-to-school
+	    :preconds '(son-at-home car-works)
+	    :add-list '(son-at-school)
+	    :del-list '(son-at-home))
+   (make-op :action 'shop-installs-battery
+	    :preconds '(car-needs-battery shop-knows-problem shop-has-money)
+	    :add-list '(car-works))
+   (make-op :action 'tell-shop-problem
+	    :preconds '(in-communication-with-shop)
+	    :add-list '(shop-knows-problem))
+   (make-op :action 'telephone-shop
+	    :preconds '(know-phone-number)
+	    :add-list '(in-communication-with-shop))
+   (make-op :action 'look-up-number
+	    :preconds '(have-phone-book)
+	    :add-list '(know-phone-number))
+   (make-op :action 'give-shop-money
+	    :preconds '(have-money)
+	    :add-list '(shop-has-money)
+	    :del-list '(have-money))))
+
+
+
+
+
+

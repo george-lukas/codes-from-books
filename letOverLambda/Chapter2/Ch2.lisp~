@@ -1,0 +1,21 @@
+;;;; ch2.lisp - Chapter2: Closures
+;;;; George Lukas < last update: Jan/09/2016 - 07:15PM >
+
+;;; Block-Scanner
+(defvar *scanner* (block-Scanner "jihad"))
+
+(defun block-scanner (trigger-string)
+  "Make a closure accepting str chunksm testing for 'trigger-string'."
+  (let ((trig (coerce trigger-string 'list))
+        curr-states)
+    (lambda (data-string)
+      (loop :for c :across data-string :do
+	 (let (new-states)             
+	   (if (char= c (first trig))
+	       (push (rest trig) new-states))
+	   (loop :for s :in curr-states :do
+	      (if (char= c (first s))
+		  (push (rest s) new-states)))
+	   (setq curr-states new-states))
+	 (if (remove-if-not 'null curr-states)
+	     (return t))))))
