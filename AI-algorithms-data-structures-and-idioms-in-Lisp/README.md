@@ -1,3 +1,3 @@
-Codes from AI algorithms, data structures, and idioms in Prolog, Lisp, and Java
+#Codes from AI algorithms, data structures, and idioms in Prolog, Lisp, and Java
 
-# Programming in lisp.
+Programming in lisp.
